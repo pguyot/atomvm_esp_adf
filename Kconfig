@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT
+
+menu "ATOMVM_ESP_ADF Configuration"
+
+config AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+	bool  "Enable AtomVM esp adf audio element driver"
+	default y
+
+config AVM_ESP_ADF_AUDIO_PIPELINE_ENABLE
+	bool  "Enable AtomVM esp adf audio pipeline"
+	default y
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_I2S_OUTPUT_ENABLE
+	bool  "Enable AtomVM esp adf i2s output"
+	default y
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_MP3_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf mp3 decoder"
+	default y
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+endmenu

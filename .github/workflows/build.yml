@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: MIT
+name: Build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        soc: ["esp32", "esp32c3", "esp32s2", "esp32s3", "esp32c6"]
+        idf-version:
+         - 'v5.1.3'
+         - 'v5.2.1'
+        otp:
+         - "26"
+        elixir_version:
+         - "1.16"
+
+    container: espressif/idf:release-v5.2
+    steps:
+    - name: Checkout AtomVM
+      uses: actions/checkout@v3
+      with:
+        repository: atomvm/AtomVM
+        path: AtomVM
+
+    - name: Checkout atomvm_esp_adf
+      uses: actions/checkout@v3
+      with:
+        path: AtomVM/src/platform/esp32/components/
+
+    - uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{ matrix.otp }}
+        elixir-version: ${{ matrix.elixir_version }}
+
+    - name: Install dependencies to build host AtomVM
+      run: |
+        set -eu
+        apt update
+        DEBIAN_FRONTEND=noninteractive apt install -y -q \
+            doxygen \
+            libglib2.0-0 libpixman-1-0 \
+            gcc g++ zlib1g-dev libsdl2-2.0-0 libslirp0 libmbedtls-dev
+
+    # needed for generating AtomVM version when running in a docker container
+    - name: Configure Git
+      run: |
+        git config --global --add safe.directory /__w/AtomVM/AtomVM
+        echo -n "git rev-parse: "
+        git rev-parse --short HEAD
+
+    - name: Build AtomVM libraries
+      shell: bash
+      working-directory: AtomVM/
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cd libs
+        make
+
+    - name: Build ${{ matrix.soc }} binary with idf.py
+      shell: bash
+      working-directory: AtomVM/src/platforms/esp32/
+      run: |
+        cp sdkconfig.release-defaults sdkconfig.defaults
+        rm -rf build
+        . $IDF_PATH/export.sh
+        idf.py set-target ${{ matrix.soc }}
+        idf.py reconfigure
+        idf.py build
+
+    - name: "Create a ${{ matrix.soc }} image"
+      working-directory: ./src/platforms/esp32/build
+      run: |
+        ./mkimage.sh
+        ls -l *.img
+
+    - name: "Upload ${{ matrix.soc }} artifacts"
+      uses: actions/upload-artifact@v3
+      with:
+        name: atomvm-${{ matrix.soc }}-image
+        path: ./src/platforms/esp32/build/atomvm-${{ matrix.soc }}.img
+        if-no-files-found: error
+
+  build-doc:
+    runs-on: ubuntu-latest
+    container: erlang:26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      - name: Build edoc
+        run: |
+          rebar3 edoc
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: doc
+
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install clang-format
+        run: |
+            sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+      - name: Install run-clang-format
+        run: |
+            curl -sSfL https://raw.githubusercontent.com/Sarcasm/run-clang-format/master/run-clang-format.py -o run-clang-format
+            chmod +x run-clang-format
+      - name: Check format with clang-format
+        run: |
+            ./run-clang-format --style=file -r nifs/
+
+  erlfmt:
+    runs-on: ubuntu-latest
+    container: erlang:26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Checkout erlfmt
+        run: |
+            cd ..
+            git clone --depth 1 -b v1.1.0 https://github.com/WhatsApp/erlfmt.git
+            cd erlfmt
+            rebar3 as release escriptize
+      - name: Check format with erlfmt
+        run: |
+            find . -name *.erl | xargs ../erlfmt/_build/release/bin/erlfmt -c

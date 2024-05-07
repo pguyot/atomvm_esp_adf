@@ -1,0 +1,11 @@
+## IDF Component Manager Manifest File
+dependencies:
+  ## Required IDF version
+  idf:
+    version: ">=4.1.0"
+  audio_pipeline:
+    path: components/esp-adf/components/audio_pipeline
+  audio_sal:
+    path: components/esp-adf/components/audio_sal
+  esp-adf-libs:
+    path: components/esp-adf/components/esp-adf-libs
