@@ -1,0 +1,12 @@
+{
+    application, atomvm_esp_adf, [
+        {description, "Port of ESP ADF for the AtomVM platform"},
+        {vsn, "0.1.0"},
+        {registered, []},
+        {applications, [kernel, stdlib]},
+        {env,[]},
+        {modules, []},
+        {licenses, ["MIT"]},
+        {links, []}
+    ]
+}.
