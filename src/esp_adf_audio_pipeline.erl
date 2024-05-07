@@ -41,7 +41,7 @@ register(_AudioPipeline, _AudioElement, _Name) ->
 %% @param AudioElement element to unregister
 %% @return ok
 -spec unregister(audio_pipeline(), audio_element:audio_element()) -> ok.
-unregister(_AudioPipeline, _AudioElement, _Name) ->
+unregister(_AudioPipeline, _AudioElement) ->
     erlang:nif_error(undefined).
 
 %% @doc Link audio elements, i.e. define the pipeline order.

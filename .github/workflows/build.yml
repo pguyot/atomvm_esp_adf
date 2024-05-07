@@ -15,44 +15,35 @@ jobs:
         idf-version:
          - 'v5.1.3'
          - 'v5.2.1'
-        otp:
-         - "26"
-        elixir_version:
-         - "1.16"
 
     container: espressif/idf:release-v5.2
     steps:
     - name: Checkout AtomVM
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: atomvm/AtomVM
         path: AtomVM
 
     - name: Checkout atomvm_esp_adf
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
-        path: AtomVM/src/platform/esp32/components/
+        path: AtomVM/src/platforms/esp32/components/atomvm_esp_adf/
 
-    - uses: erlef/setup-beam@v1
-      with:
-        otp-version: ${{ matrix.otp }}
-        elixir-version: ${{ matrix.elixir_version }}
+    - name: Checkout atomvm_esp_adf submodules
+      shell: bash
+      working-directory: AtomVM/src/platforms/esp32/components/atomvm_esp_adf/
+      run: |
+        git submodule update --init components/esp-adf
+        cd components/esp-adf
+        git submodule update --init components/esp-adf-libs/
 
     - name: Install dependencies to build host AtomVM
       run: |
         set -eu
         apt update
         DEBIAN_FRONTEND=noninteractive apt install -y -q \
-            doxygen \
-            libglib2.0-0 libpixman-1-0 \
-            gcc g++ zlib1g-dev libsdl2-2.0-0 libslirp0 libmbedtls-dev
-
-    # needed for generating AtomVM version when running in a docker container
-    - name: Configure Git
-      run: |
-        git config --global --add safe.directory /__w/AtomVM/AtomVM
-        echo -n "git rev-parse: "
-        git rev-parse --short HEAD
+            doxygen erlang-base erlang-dialyzer elixir \
+            gcc g++ zlib1g-dev libmbedtls-dev make cmake
 
     - name: Build AtomVM libraries
       shell: bash
@@ -72,20 +63,20 @@ jobs:
         rm -rf build
         . $IDF_PATH/export.sh
         idf.py set-target ${{ matrix.soc }}
-        idf.py reconfigure
-        idf.py build
+        echo CONFIG_FREERTOS_ENABLE_BACKWARD_COMPATIBILITY=y >> sdkconfig
+        idf.py build -DCONFIG_FREERTOS_ENABLE_BACKWARD_COMPATIBILITY=y
 
     - name: "Create a ${{ matrix.soc }} image"
-      working-directory: ./src/platforms/esp32/build
+      working-directory: AtomVM/src/platforms/esp32/build
       run: |
         ./mkimage.sh
-        ls -l *.img
+        mv atomvm-${{ matrix.soc }}.img atomvm-esp-adf-${{ matrix.soc }}-${{ matrix.idf-version }}.img
 
     - name: "Upload ${{ matrix.soc }} artifacts"
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: atomvm-${{ matrix.soc }}-image
-        path: ./src/platforms/esp32/build/atomvm-${{ matrix.soc }}.img
+        name: atomvm-esp-adf-${{ matrix.soc }}-${{ matrix.idf-version }}-image
+        path: AtomVM/src/platforms/esp32/build/atomvm-esp-adf-${{ matrix.soc }}-${{ matrix.idf-version }}.img
         if-no-files-found: error
 
   build-doc:
@@ -93,14 +84,14 @@ jobs:
     container: erlang:26
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup Pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v4
       - name: Build edoc
         run: |
           rebar3 edoc
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: doc
 
@@ -108,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install clang-format
         run: |
             sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
@@ -125,7 +116,7 @@ jobs:
     container: erlang:26
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Checkout erlfmt
         run: |
             cd ..
