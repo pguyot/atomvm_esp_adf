@@ -42,6 +42,13 @@ struct I2SData
     i2s_std_config_t std_config;
 };
 
+struct MusicInfo
+{
+    int rate;
+    i2s_slot_mode_t channels;
+    i2s_data_bit_width_t bits;
+};
+
 static esp_err_t i2s_open(audio_element_handle_t self)
 {
     TRACE("%s\n", __func__);
@@ -108,7 +115,7 @@ static int i2s_write(audio_element_handle_t self, char *buffer, int len, TickTyp
     return bytes_written;
 }
 
-static void i2s_data_init(struct I2SData *driver_data, int rate, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
+static void i2s_data_init(struct I2SData *driver_data, const struct MusicInfo *music_info, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
 {
     TRACE("%s\n", __func__);
 
@@ -116,8 +123,8 @@ static void i2s_data_init(struct I2SData *driver_data, int rate, int gpio_mclk, 
     i2s_new_channel(&driver_data->chan_cfg, &driver_data->tx_handle, NULL);
 
     driver_data->std_config = (i2s_std_config_t){
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(rate),
-        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(music_info->rate),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(music_info->bits, music_info->channels),
         .gpio_cfg = {
             .mclk = gpio_mclk,
             .bclk = gpio_bclk,
@@ -134,7 +141,7 @@ static void i2s_data_init(struct I2SData *driver_data, int rate, int gpio_mclk, 
     i2s_channel_init_std_mode(driver_data->tx_handle, &driver_data->std_config);
 }
 
-static term i2s_output_new(Context *ctx, term argv[], int rate, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
+static term i2s_output_new(Context *ctx, term argv[], const struct MusicInfo *music_info, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
 {
     TRACE("%s\n", __func__);
 
@@ -165,7 +172,7 @@ static term i2s_output_new(Context *ctx, term argv[], int rate, int gpio_mclk, i
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
 
-    i2s_data_init(driver_data, rate, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
+    i2s_data_init(driver_data, music_info, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
 
     rsrc_obj->audio_element = audio_element_init(&cfg);
     if (IS_NULL_PTR(rsrc_obj->audio_element)) {
@@ -175,6 +182,7 @@ static term i2s_output_new(Context *ctx, term argv[], int rate, int gpio_mclk, i
     }
 
     audio_element_setdata(rsrc_obj->audio_element, driver_data);
+    audio_element_set_music_info(rsrc_obj->audio_element, music_info->rate, music_info->channels, music_info->bits);
 
     return obj;
 }
@@ -188,19 +196,16 @@ static term nif_init(Context *ctx, int argc, term argv[])
 
     VALIDATE_VALUE(cfg, term_is_list);
 
-    term rate_term = interop_kv_get_value_default(cfg, ATOM_STR("\x4", "rate"), term_from_int(48000), ctx->global);
     term gpio_mclk_term = interop_kv_get_value_default(cfg, ATOM_STR("\x9", "gpio_mclk"), term_from_int(I2S_GPIO_UNUSED), ctx->global);
     term gpio_bclk_term = interop_kv_get_value(cfg, ATOM_STR("\x9", "gpio_bclk"), ctx->global);
     term gpio_lrclk_term = interop_kv_get_value(cfg, ATOM_STR("\xA", "gpio_lrclk"), ctx->global);
     term gpio_dout_term = interop_kv_get_value(cfg, ATOM_STR("\x9", "gpio_dout"), ctx->global);
 
-    VALIDATE_VALUE(rate_term, term_is_integer);
     VALIDATE_VALUE(gpio_mclk_term, term_is_integer);
     VALIDATE_VALUE(gpio_bclk_term, term_is_integer);
     VALIDATE_VALUE(gpio_lrclk_term, term_is_integer);
     VALIDATE_VALUE(gpio_dout_term, term_is_integer);
 
-    avm_int_t rate = term_to_int(rate_term);
     avm_int_t gpio_mclk = term_to_int(gpio_mclk_term);
     avm_int_t gpio_bclk = term_to_int(gpio_bclk_term);
     avm_int_t gpio_lrclk = term_to_int(gpio_lrclk_term);
@@ -219,7 +224,42 @@ static term nif_init(Context *ctx, int argc, term argv[])
         RAISE_ERROR(BADARG_ATOM);
     }
 
-    return i2s_output_new(ctx, argv, rate, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
+    term rate_term = interop_kv_get_value_default(cfg, ATOM_STR("\x4", "rate"), term_from_int(48000), ctx->global);
+    term bits_term = interop_kv_get_value_default(cfg, ATOM_STR("\x4", "bits"), term_from_int(32), ctx->global);
+    term channels_term = interop_kv_get_value_default(cfg, ATOM_STR("\x8", "channels"), term_from_int(2), ctx->global);
+
+    VALIDATE_VALUE(rate_term, term_is_integer);
+    VALIDATE_VALUE(bits_term, term_is_integer);
+    VALIDATE_VALUE(channels_term, term_is_integer);
+
+    avm_int_t rate = term_to_int(rate_term);
+    avm_int_t bits = term_to_int(bits_term);
+    avm_int_t channels = term_to_int(channels_term);
+
+    // In standard mode, there are always 2 channels
+    if (UNLIKELY(channels != 2)) {
+        RAISE_ERROR(BADARG_ATOM);
+    }
+    // In standard mode, bits can be 8/16/24 or 32
+    if (UNLIKELY(bits != 8 && bits != 16 && bits != 24 && bits != 32)) {
+        RAISE_ERROR(BADARG_ATOM);
+    }
+
+#if __STDC_VERSION__ >= 201112L
+    _Static_assert(I2S_SLOT_MODE_STEREO == 2, "expected I2S_SLOT_MODE_STEREO to be equal to 2");
+    _Static_assert(I2S_DATA_BIT_WIDTH_8BIT == 8, "expected I2S_DATA_BIT_WIDTH_8BIT to be equal to 8");
+    _Static_assert(I2S_DATA_BIT_WIDTH_16BIT == 16, "expected I2S_DATA_BIT_WIDTH_16BIT to be equal to 16");
+    _Static_assert(I2S_DATA_BIT_WIDTH_24BIT == 24, "expected I2S_DATA_BIT_WIDTH_24BIT to be equal to 24");
+    _Static_assert(I2S_DATA_BIT_WIDTH_32BIT == 32, "expected I2S_DATA_BIT_WIDTH_32BIT to be equal to 32");
+#endif
+
+    struct MusicInfo music_info = {
+        .rate = rate,
+        .bits = bits,
+        .channels = channels
+    };
+
+    return i2s_output_new(ctx, argv, &music_info, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
 }
 
 static const struct Nif init_nif = {
