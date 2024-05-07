@@ -2,6 +2,7 @@
 name: Build
 on:
   push:
+    branches: ["main"]
   pull_request:
   workflow_dispatch:
 
@@ -79,6 +80,22 @@ jobs:
         path: AtomVM/src/platforms/esp32/build/atomvm-esp-adf-${{ matrix.soc }}-${{ matrix.idf-version }}.img
         if-no-files-found: error
 
+  build-examples:
+    runs-on: ubuntu-latest
+    container: erlang:26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build examples
+        run: |
+          cd examples
+          for conf in  */rebar.config ; do
+            example_dir=`dirname ${conf}`
+            cd ${example_dir}
+            rebar3 atomvm packbeam
+            cd ..
+          done
+
   build-doc:
     runs-on: ubuntu-latest
     container: erlang:26
@@ -120,7 +137,7 @@ jobs:
       - name: Checkout erlfmt
         run: |
             cd ..
-            git clone --depth 1 -b v1.1.0 https://github.com/WhatsApp/erlfmt.git
+            git clone --depth 1 -b v1.3.0 https://github.com/WhatsApp/erlfmt.git
             cd erlfmt
             rebar3 as release escriptize
       - name: Check format with erlfmt
