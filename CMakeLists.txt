@@ -21,6 +21,7 @@
 set(ATOMVM_ESP_AUDIO_COMPONENT_SRCS
     "nifs/atomvm_esp_adf_audio_element.c"
     "nifs/atomvm_esp_adf_audio_pipeline.c"
+    "nifs/atomvm_esp_adf_aac_decoder.c"
     "nifs/atomvm_esp_adf_i2s_output.c"
     "nifs/atomvm_esp_adf_mp3_decoder.c"
 )

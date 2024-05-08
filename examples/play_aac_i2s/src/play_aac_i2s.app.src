@@ -1,0 +1,14 @@
+{application, play_aac_i2s, [
+    {description, "AtomVM AAC player"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, []},
+    {modules, []},
+
+    {licenses, ["MIT"]},
+    {links, []}
+]}.

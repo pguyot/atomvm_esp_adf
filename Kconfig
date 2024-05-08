@@ -16,6 +16,11 @@ config AVM_ESP_ADF_I2S_OUTPUT_ENABLE
 	default y
 	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
 
+config AVM_ESP_ADF_AAC_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf aac decoder"
+	default y
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
 config AVM_ESP_ADF_MP3_DECODER_ENABLE
 	bool  "Enable AtomVM esp adf mp3 decoder"
 	default y
