@@ -17,6 +17,6 @@
 %% I2S is configured in standard mode ("Philips"), which means that
 %% channels should be 2 (this is the default) and bits can be 8, 16, 24 or 32.
 %% @param Cfg configuration
--spec init([i2s_output_option()]) -> audio_element:audio_element().
+-spec init([i2s_output_option()]) -> esp_adf_audio_element:audio_element().
 init(_Cfg) ->
     erlang:nif_error(undefined).

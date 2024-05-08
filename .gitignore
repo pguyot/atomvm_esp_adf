@@ -56,3 +56,6 @@ dkms.conf
 
 # rebar3
 _build
+
+# ex_doc
+doc

@@ -32,7 +32,7 @@ init(_Cfg) ->
 %% @param AudioElement element to register
 %% @param Name name of the element in the pipeline
 %% @return ok
--spec register(audio_pipeline(), audio_element:audio_element(), atom() | iodata()) -> ok.
+-spec register(audio_pipeline(), esp_adf_audio_element:audio_element(), atom() | iodata()) -> ok.
 register(_AudioPipeline, _AudioElement, _Name) ->
     erlang:nif_error(undefined).
 
@@ -40,7 +40,7 @@ register(_AudioPipeline, _AudioElement, _Name) ->
 %% @param AudioPipeline pipeline to unregister the element from
 %% @param AudioElement element to unregister
 %% @return ok
--spec unregister(audio_pipeline(), audio_element:audio_element()) -> ok.
+-spec unregister(audio_pipeline(), esp_adf_audio_element:audio_element()) -> ok.
 unregister(_AudioPipeline, _AudioElement) ->
     erlang:nif_error(undefined).
 
