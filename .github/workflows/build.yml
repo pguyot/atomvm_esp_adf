@@ -17,7 +17,7 @@ jobs:
          - 'v5.1.3'
          - 'v5.2.1'
 
-    container: espressif/idf:release-v5.2
+    container: espressif/idf:${{ matrix.idf-version }}
     steps:
     - name: Checkout AtomVM
       uses: actions/checkout@v4
