@@ -15,6 +15,8 @@
 #include <esp_log.h>
 #include <esp_system.h>
 
+#include <audio_element.h>
+
 #pragma GCC diagnostic pop
 
 #include <context.h>
@@ -141,11 +143,11 @@ static void i2s_data_init(struct I2SData *driver_data, const struct MusicInfo *m
     i2s_channel_init_std_mode(driver_data->tx_handle, &driver_data->std_config);
 }
 
-static term i2s_output_new(Context *ctx, term argv[], const struct MusicInfo *music_info, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
+static term i2s_output_new(Context *ctx, term argv[], bool active, const struct MusicInfo *music_info, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
 {
     TRACE("%s\n", __func__);
 
-    if (UNLIKELY(memory_ensure_free(ctx, TERM_BOXED_RESOURCE_SIZE) != MEMORY_GC_OK)) {
+    if (UNLIKELY(memory_ensure_free(ctx, AUDIO_ELEMENT_OPAQUE_TERM_SIZE) != MEMORY_GC_OK)) {
         ESP_LOGW(TAG, "Failed to allocate memory: %s:%i.", __FILE__, __LINE__);
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
@@ -155,8 +157,6 @@ static term i2s_output_new(Context *ctx, term argv[], const struct MusicInfo *mu
         ESP_LOGW(TAG, "Failed to allocate memory: %s:%i.\n", __FILE__, __LINE__);
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
-    term obj = enif_make_resource(erl_nif_env_from_context(ctx), rsrc_obj);
-    enif_release_resource(rsrc_obj);
 
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.open = i2s_open;
@@ -174,17 +174,18 @@ static term i2s_output_new(Context *ctx, term argv[], const struct MusicInfo *mu
 
     i2s_data_init(driver_data, music_info, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
 
-    rsrc_obj->audio_element = audio_element_init(&cfg);
-    if (IS_NULL_PTR(rsrc_obj->audio_element)) {
+    audio_element_handle_t audio_element = audio_element_init(&cfg);
+    if (IS_NULL_PTR(audio_element)) {
         ESP_LOGW(TAG, "Failed to allocate memory: %s:%i.\n", __FILE__, __LINE__);
         free(driver_data);
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
 
-    audio_element_setdata(rsrc_obj->audio_element, driver_data);
-    audio_element_set_music_info(rsrc_obj->audio_element, music_info->rate, music_info->channels, music_info->bits);
+    audio_element_setdata(audio_element, driver_data);
+    audio_element_set_music_info(audio_element, music_info->rate, music_info->channels, music_info->bits);
 
-    return obj;
+    atomvm_esp_adf_audio_element_init_resource(rsrc_obj, audio_element, active, ctx);
+    return atomvm_esp_adf_audio_element_resource_to_opaque(rsrc_obj, ctx);
 }
 
 static term nif_init(Context *ctx, int argc, term argv[])
@@ -259,7 +260,10 @@ static term nif_init(Context *ctx, int argc, term argv[])
         .channels = channels
     };
 
-    return i2s_output_new(ctx, argv, &music_info, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
+    term active_term = interop_kv_get_value_default(cfg, ATOM_STR("\x6", "active"), TRUE_ATOM, ctx->global);
+    VALIDATE_VALUE(active_term, term_is_atom);
+
+    return i2s_output_new(ctx, argv, active_term == TRUE_ATOM, &music_info, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
 }
 
 static const struct Nif init_nif = {

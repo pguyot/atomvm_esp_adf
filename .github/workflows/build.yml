@@ -67,6 +67,20 @@ jobs:
         echo CONFIG_FREERTOS_ENABLE_BACKWARD_COMPATIBILITY=y >> sdkconfig
         idf.py build -DCONFIG_FREERTOS_ENABLE_BACKWARD_COMPATIBILITY=y
 
+    - name: Run tests using qemu
+      shell: bash
+      if: matrix.soc == 'esp32' || matrix.soc == 'esp32c3'
+      working-directory: AtomVM/src/platforms/esp32/components/atomvm_esp_adf/tests/
+      run: |
+        # Some images have erlang-22, so latest compatible rebar is 3.18.0
+        wget https://github.com/erlang/rebar3/releases/download/3.18.0/rebar3
+        chmod +x rebar3
+        DEBIAN_FRONTEND=noninteractive apt install -y -q erlang erlang-eunit
+        ./rebar3 atomvm packbeam
+        . $IDF_PATH/export.sh
+        pip install -U pytest-embedded pytest-embedded-qemu
+        pytest --target=${{ matrix.soc }}
+
     - name: "Create a ${{ matrix.soc }} image"
       working-directory: AtomVM/src/platforms/esp32/build
       run: |

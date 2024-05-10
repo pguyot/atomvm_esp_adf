@@ -26,6 +26,7 @@ start() ->
     ok = esp_adf_audio_element:set_read_binary(AACDecoder, AACFile),
     ok = esp_adf_audio_pipeline:register(AudioPipeline, AACDecoder, <<"aac">>),
 
+    % We know the sample sound is 44.1 kHz, stereo
     I2SOutput = esp_adf_i2s_output:init([
         {rate, 44100},
         {bits, 16},
@@ -39,7 +40,12 @@ start() ->
 
     ok = esp_adf_audio_pipeline:run(AudioPipeline),
 
-    timer:sleep(7000),
+    % We know the sample sound is about 7 seconds long.
+    ok =
+        receive
+            {audio_element, I2SOutput, {status, state_finished}} -> ok
+        after 7000 -> timeout
+        end,
 
     ok = esp_adf_audio_pipeline:stop(AudioPipeline),
     ok = esp_adf_audio_pipeline:wait_for_stop(AudioPipeline),
