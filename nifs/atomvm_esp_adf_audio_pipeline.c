@@ -45,25 +45,30 @@ struct AudioPipelineResource
 
 static void audio_pipeline_dtor(ErlNifEnv *caller_env, void *obj)
 {
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(caller_env);
 
     struct AudioPipelineResource *rsrc_obj = (struct AudioPipelineResource *) obj;
     audio_pipeline_deinit(rsrc_obj->audio_pipeline);
 }
 
-static const ErlNifResourceTypeInit AudioPipelineContextResourceTypeInit = {
+static const ErlNifResourceTypeInit audio_pipeline_resource_type_init = {
     .members = 1,
     .dtor = audio_pipeline_dtor,
 };
 
 static ErlNifResourceType *audio_pipeline_resource_type;
 
+//
+// Nifs
+//
+
 static term nif_init(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
-    VALIDATE_VALUE(argv[1], term_is_list);
+    VALIDATE_VALUE(argv[0], term_is_list);
 
     if (UNLIKELY(memory_ensure_free(ctx, TERM_BOXED_RESOURCE_SIZE) != MEMORY_GC_OK)) {
         ESP_LOGW(TAG, "Failed to allocate memory: %s:%i.", __FILE__, __LINE__);
@@ -78,15 +83,15 @@ static term nif_init(Context *ctx, int argc, term argv[])
     term obj = enif_make_resource(erl_nif_env_from_context(ctx), rsrc_obj);
     enif_release_resource(rsrc_obj);
 
-    audio_pipeline_cfg_t mp3_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
-    rsrc_obj->audio_pipeline = audio_pipeline_init(&mp3_cfg);
+    audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
+    rsrc_obj->audio_pipeline = audio_pipeline_init(&pipeline_cfg);
 
     return obj;
 }
 
 static term nif_register(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
     void *pipeline_rsrc_obj_ptr;
@@ -95,11 +100,10 @@ static term nif_register(Context *ctx, int argc, term argv[])
     }
     struct AudioPipelineResource *audio_pipeline_obj = (struct AudioPipelineResource *) pipeline_rsrc_obj_ptr;
 
-    void *element_rsrc_obj_ptr;
-    if (UNLIKELY(!enif_get_resource(erl_nif_env_from_context(ctx), argv[1], audio_element_resource_type, &element_rsrc_obj_ptr))) {
+    struct AudioElementResource *audio_element_obj = atomvm_esp_adf_audio_element_opaque_to_resource(argv[1], ctx);
+    if (IS_NULL_PTR(audio_element_obj)) {
         RAISE_ERROR(BADARG_ATOM);
     }
-    struct AudioElementResource *audio_element_obj = (struct AudioElementResource *) element_rsrc_obj_ptr;
 
     int ok;
     char *name = interop_term_to_string(argv[2], &ok);
@@ -123,7 +127,7 @@ static term nif_register(Context *ctx, int argc, term argv[])
 
 static term nif_unregister(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
     void *pipeline_rsrc_obj_ptr;
@@ -132,11 +136,10 @@ static term nif_unregister(Context *ctx, int argc, term argv[])
     }
     struct AudioPipelineResource *audio_pipeline_obj = (struct AudioPipelineResource *) pipeline_rsrc_obj_ptr;
 
-    void *element_rsrc_obj_ptr;
-    if (UNLIKELY(!enif_get_resource(erl_nif_env_from_context(ctx), argv[1], audio_element_resource_type, &element_rsrc_obj_ptr))) {
+    struct AudioElementResource *audio_element_obj = atomvm_esp_adf_audio_element_opaque_to_resource(argv[1], ctx);
+    if (IS_NULL_PTR(audio_element_obj)) {
         RAISE_ERROR(BADARG_ATOM);
     }
-    struct AudioElementResource *audio_element_obj = (struct AudioElementResource *) element_rsrc_obj_ptr;
 
     esp_err_t err = audio_pipeline_unregister(audio_pipeline_obj->audio_pipeline, audio_element_obj->audio_element);
 
@@ -152,7 +155,7 @@ static term nif_unregister(Context *ctx, int argc, term argv[])
 
 static term nif_link(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
     VALIDATE_VALUE(argv[1], term_is_list);
@@ -203,7 +206,7 @@ static term nif_link(Context *ctx, int argc, term argv[])
 
 static term nif_run(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
     void *pipeline_rsrc_obj_ptr;
@@ -226,7 +229,7 @@ static term nif_run(Context *ctx, int argc, term argv[])
 
 static term nif_stop(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
     void *pipeline_rsrc_obj_ptr;
@@ -247,7 +250,7 @@ static term nif_stop(Context *ctx, int argc, term argv[])
 // This is a dirty nif
 static term nif_wait_for_stop(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
     void *pipeline_rsrc_obj_ptr;
@@ -267,7 +270,7 @@ static term nif_wait_for_stop(Context *ctx, int argc, term argv[])
 
 static term nif_terminate(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
     UNUSED(argc);
 
     void *pipeline_rsrc_obj_ptr;
@@ -361,11 +364,11 @@ static const struct Nif *get_nif(const char *nifname)
 
 static void esp_adf_audio_pipeline_init(GlobalContext *global)
 {
-    TRACE("%s\n", __func__);
+    TRACE("%s:%s\n", __FILE__, __func__);
 
     ErlNifEnv env;
     erl_nif_env_partial_init_from_globalcontext(&env, global);
-    audio_pipeline_resource_type = enif_init_resource_type(&env, "audio_pipeline", &AudioPipelineContextResourceTypeInit, ERL_NIF_RT_CREATE, NULL);
+    audio_pipeline_resource_type = enif_init_resource_type(&env, "audio_pipeline", &audio_pipeline_resource_type_init, ERL_NIF_RT_CREATE, NULL);
 }
 
 REGISTER_NIF_COLLECTION(esp_adf_audio_pipeline, esp_adf_audio_pipeline_init, NULL, get_nif)

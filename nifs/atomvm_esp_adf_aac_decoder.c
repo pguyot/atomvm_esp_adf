@@ -39,9 +39,10 @@ static term nif_init(Context *ctx, int argc, term argv[])
     TRACE("%s\n", __func__);
     UNUSED(argc);
 
-    VALIDATE_VALUE(argv[1], term_is_list);
+    VALIDATE_VALUE(argv[0], term_is_list);
+    term active_term = interop_kv_get_value_default(argv[0], ATOM_STR("\x6", "active"), TRUE_ATOM, ctx->global);
 
-    if (UNLIKELY(memory_ensure_free(ctx, TERM_BOXED_RESOURCE_SIZE) != MEMORY_GC_OK)) {
+    if (UNLIKELY(memory_ensure_free(ctx, AUDIO_ELEMENT_OPAQUE_TERM_SIZE) != MEMORY_GC_OK)) {
         ESP_LOGW(TAG, "Failed to allocate memory: %s:%i.", __FILE__, __LINE__);
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
@@ -51,13 +52,13 @@ static term nif_init(Context *ctx, int argc, term argv[])
         ESP_LOGW(TAG, "Failed to allocate memory: %s:%i.\n", __FILE__, __LINE__);
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
-    term obj = enif_make_resource(erl_nif_env_from_context(ctx), rsrc_obj);
-    enif_release_resource(rsrc_obj);
 
     aac_decoder_cfg_t aac_cfg = DEFAULT_AAC_DECODER_CONFIG();
-    rsrc_obj->audio_element = aac_decoder_init(&aac_cfg);
+    audio_element_handle_t audio_element = aac_decoder_init(&aac_cfg);
 
-    return obj;
+    atomvm_esp_adf_audio_element_init_resource(rsrc_obj, audio_element, active_term == TRUE_ATOM, ctx);
+
+    return atomvm_esp_adf_audio_element_resource_to_opaque(rsrc_obj, ctx);
 }
 
 static const struct Nif init_nif = {
