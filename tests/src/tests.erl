@@ -87,6 +87,14 @@ pipeline_register_unregister_gc_test() ->
     ok = loop_memory_binary_size(5, MemoryBinarySize),
     ok.
 
+flush_messages() ->
+    receive
+        {audio_element, _AudioElement, _Message} = Msg ->
+            io:format("~p\n", [Msg]),
+            flush_messages()
+    after 0 -> ok
+    end.
+
 pipeline_link_gc_test() ->
     MemoryBinarySize = erlang:memory(binary),
     {Pid, MonitorRef} = spawn_opt(
@@ -96,16 +104,19 @@ pipeline_link_gc_test() ->
             AACDecoder = esp_adf_aac_decoder:init([]),
             ok = esp_adf_audio_element:set_read_binary(AACDecoder, AACFile),
             ok = esp_adf_audio_pipeline:register(AudioPipeline, AACDecoder, <<"aac">>),
+            ResampleFilter = esp_adf_rsp_filter:init([{src_rate, 44100}, {dest_rate, 48000}]),
+            ok = esp_adf_audio_pipeline:register(AudioPipeline, ResampleFilter, <<"filter">>),
             I2SOutput = esp_adf_i2s_output:init([
-                {rate, 44100},
+                {rate, 48000},
                 {bits, 16},
                 {gpio_bclk, 9},
                 {gpio_lrclk, 8},
                 {gpio_dout, 7}
             ]),
             ok = esp_adf_audio_pipeline:register(AudioPipeline, I2SOutput, <<"i2s">>),
-            ok = esp_adf_audio_pipeline:link(AudioPipeline, [<<"aac">>, <<"i2s">>]),
+            ok = esp_adf_audio_pipeline:link(AudioPipeline, [<<"aac">>, <<"filter">>, <<"i2s">>]),
             ok = esp_adf_audio_pipeline:unregister(AudioPipeline, AACDecoder),
+            ok = esp_adf_audio_pipeline:unregister(AudioPipeline, ResampleFilter),
             ok = esp_adf_audio_pipeline:unregister(AudioPipeline, I2SOutput),
             ok
         end,
@@ -133,10 +144,17 @@ pipeline_run_stop_gc_test() ->
                     {audio_element, MP3Decoder, {status, state_finished}} -> ok
                 after 7000 -> timeout
                 end,
+            ok = flush_messages(),
             ok = esp_adf_audio_pipeline:stop(AudioPipeline),
+            ok =
+                receive
+                    {audio_element, MP3Decoder, {status, state_stopped}} -> ok
+                after 500 -> timeout
+                end,
             ok = esp_adf_audio_pipeline:wait_for_stop(AudioPipeline),
             ok = esp_adf_audio_pipeline:terminate(AudioPipeline),
             ok = esp_adf_audio_pipeline:unregister(AudioPipeline, MP3Decoder),
+            ok = flush_messages(),
             ok
         end,
         [monitor]
@@ -168,8 +186,8 @@ mp3_decoder_active_events_test() ->
     {ok, SoundDuration} =
         receive
             {audio_element, MP3Decoder, {position, Position}} ->
-                {codec_fmt, mp3} = lists:keyfind(codec_fmt, 1, Position),
-                {duration, Duration} = lists:keyfind(duration, 1, Position),
+                mp3 = maps:get(codec_fmt, Position),
+                Duration = maps:get(duration, Position),
                 {ok, Duration}
         after 500 -> timeout
         end,
@@ -179,9 +197,15 @@ mp3_decoder_active_events_test() ->
         after SoundDuration -> timeout
         end,
     ok = esp_adf_audio_pipeline:stop(AudioPipeline),
+    ok =
+        receive
+            {audio_element, MP3Decoder, {status, state_stopped}} -> ok
+        after 500 -> timeout
+        end,
     ok = esp_adf_audio_pipeline:wait_for_stop(AudioPipeline),
     ok = esp_adf_audio_pipeline:terminate(AudioPipeline),
     ok = esp_adf_audio_pipeline:unregister(AudioPipeline, MP3Decoder),
+    ok = flush_messages(),
     ok.
 
 mp3_decoder_passive_events_test() ->
@@ -195,8 +219,8 @@ mp3_decoder_passive_events_test() ->
     {ok, {status, state_running}} = esp_adf_audio_element:get_event(MP3Decoder),
     {ok, music_info} = esp_adf_audio_element:get_event(MP3Decoder),
     {ok, {position, Position}} = esp_adf_audio_element:get_event(MP3Decoder),
-    {codec_fmt, mp3} = lists:keyfind(codec_fmt, 1, Position),
-    {duration, _SoundDuration} = lists:keyfind(duration, 1, Position),
+    mp3 = maps:get(codec_fmt, Position),
+    _SoundDuration = maps:get(duration, Position),
     {ok, {status, state_finished}} = esp_adf_audio_element:get_event(MP3Decoder, infinity),
     {error, timeout} = esp_adf_audio_element:get_event(MP3Decoder, 0),
     ok = esp_adf_audio_pipeline:stop(AudioPipeline),
@@ -233,11 +257,13 @@ mp3_decoder_active_events_controlling_process_test() ->
                     {audio_element, MP3Decoder, music_info} -> ok
                 after 500 -> timeout
                 end,
+            MP3Info = esp_adf_audio_element:getinfo(MP3Decoder),
+            mp3 = maps:get(codec_fmt, MP3Info),
             {ok, SoundDuration} =
                 receive
                     {audio_element, MP3Decoder, {position, Position}} ->
-                        {codec_fmt, mp3} = lists:keyfind(codec_fmt, 1, Position),
-                        {duration, Duration} = lists:keyfind(duration, 1, Position),
+                        mp3 = maps:get(codec_fmt, Position),
+                        Duration = maps:get(duration, Position),
                         {ok, Duration}
                 after 500 -> timeout
                 end,
@@ -246,6 +272,7 @@ mp3_decoder_active_events_controlling_process_test() ->
                     {audio_element, MP3Decoder, {status, state_finished}} -> ok
                 after SoundDuration -> timeout
                 end,
+            ok = flush_messages(),
             ok
         end,
         [monitor]
@@ -272,6 +299,7 @@ mp3_decoder_active_events_controlling_process_test() ->
     ok = esp_adf_audio_pipeline:wait_for_stop(AudioPipeline),
     ok = esp_adf_audio_pipeline:terminate(AudioPipeline),
     ok = esp_adf_audio_pipeline:unregister(AudioPipeline, MP3Decoder),
+    ok = flush_messages(),
     ok.
 
 -define(TIMEOUT, 30000).

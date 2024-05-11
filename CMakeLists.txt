@@ -24,6 +24,7 @@ set(ATOMVM_ESP_AUDIO_COMPONENT_SRCS
     "nifs/atomvm_esp_adf_aac_decoder.c"
     "nifs/atomvm_esp_adf_i2s_output.c"
     "nifs/atomvm_esp_adf_mp3_decoder.c"
+    "nifs/atomvm_esp_adf_rsp_filter.c"
 )
 
 # WHOLE_ARCHIVE option is supported only with esp-idf 5.x

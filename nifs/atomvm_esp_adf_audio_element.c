@@ -152,51 +152,22 @@ static term esp_codec_to_term(esp_codec_type_t esp_codec, GlobalContext *glb)
     return result;
 }
 
+#define INFO_TERM_SIZE (TERM_MAP_SIZE(8))
+
 static term info_to_term(audio_element_info_t *info, Heap *heap, GlobalContext *glb)
 {
-    term info_list = term_nil();
+    term info_map = term_alloc_map(8, heap);
 
-    term tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\xC", "sample_rates")));
-    term_put_tuple_element(tuple, 1, term_from_int(info->sample_rates));
-    info_list = term_list_prepend(tuple, info_list, heap);
+    term_set_map_assoc(info_map, 0, globalcontext_make_atom(glb, ATOM_STR("\xC", "sample_rates")), term_from_int(info->sample_rates));
+    term_set_map_assoc(info_map, 1, globalcontext_make_atom(glb, ATOM_STR("\x8", "channels")), term_from_int(info->channels));
+    term_set_map_assoc(info_map, 2, globalcontext_make_atom(glb, ATOM_STR("\x4", "bits")), term_from_int(info->bits));
+    term_set_map_assoc(info_map, 3, globalcontext_make_atom(glb, ATOM_STR("\x3", "bps")), term_from_int(info->bps));
+    term_set_map_assoc(info_map, 4, globalcontext_make_atom(glb, ATOM_STR("\x8", "byte_pos")), term_from_int(info->byte_pos));
+    term_set_map_assoc(info_map, 5, globalcontext_make_atom(glb, ATOM_STR("\xB", "total_bytes")), term_from_int(info->total_bytes));
+    term_set_map_assoc(info_map, 6, globalcontext_make_atom(glb, ATOM_STR("\x8", "duration")), term_from_int(info->duration));
+    term_set_map_assoc(info_map, 7, globalcontext_make_atom(glb, ATOM_STR("\x9", "codec_fmt")), esp_codec_to_term(info->codec_fmt, glb));
 
-    tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\x8", "channels")));
-    term_put_tuple_element(tuple, 1, term_from_int(info->channels));
-    info_list = term_list_prepend(tuple, info_list, heap);
-
-    tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\x4", "bits")));
-    term_put_tuple_element(tuple, 1, term_from_int(info->bits));
-    info_list = term_list_prepend(tuple, info_list, heap);
-
-    tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\x3", "bps")));
-    term_put_tuple_element(tuple, 1, term_from_int(info->bps));
-    info_list = term_list_prepend(tuple, info_list, heap);
-
-    tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\x8", "byte_pos")));
-    term_put_tuple_element(tuple, 1, term_from_int(info->byte_pos));
-    info_list = term_list_prepend(tuple, info_list, heap);
-
-    tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\xB", "total_bytes")));
-    term_put_tuple_element(tuple, 1, term_from_int(info->total_bytes));
-    info_list = term_list_prepend(tuple, info_list, heap);
-
-    tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\x8", "duration")));
-    term_put_tuple_element(tuple, 1, term_from_int(info->duration));
-    info_list = term_list_prepend(tuple, info_list, heap);
-
-    tuple = term_alloc_tuple(2, heap);
-    term_put_tuple_element(tuple, 0, globalcontext_make_atom(glb, ATOM_STR("\x9", "codec_fmt")));
-    term_put_tuple_element(tuple, 1, esp_codec_to_term(info->codec_fmt, glb));
-    info_list = term_list_prepend(tuple, info_list, heap);
-
-    return info_list;
+    return info_map;
 }
 
 static term status_to_term(audio_element_status_t status, GlobalContext *glb)
@@ -255,7 +226,7 @@ static size_t event_heap_size_in_terms(audio_event_iface_msg_t *msg)
             break;
 
         case AEL_MSG_CMD_REPORT_POSITION:
-            return TUPLE_SIZE(2) + LIST_SIZE(8, TUPLE_SIZE(2));
+            return TUPLE_SIZE(2) + INFO_TERM_SIZE;
             break;
 
         default:
@@ -414,6 +385,25 @@ void atomvm_esp_adf_audio_element_init_resource(struct AudioElementResource *res
 //
 // Nifs
 //
+
+static term nif_getinfo(Context *ctx, int argc, term argv[])
+{
+    TRACE("%s:%s\n", __FILE__, __func__);
+    UNUSED(argc);
+
+    struct AudioElementResource *rsrc_obj = atomvm_esp_adf_audio_element_opaque_to_resource(argv[0], ctx);
+    if (IS_NULL_PTR(rsrc_obj)) {
+        RAISE_ERROR(BADARG_ATOM);
+    }
+
+    audio_element_info_t info;
+    audio_element_getinfo(rsrc_obj->audio_element, &info);
+
+    if (UNLIKELY(memory_ensure_free(ctx, INFO_TERM_SIZE) != MEMORY_GC_OK)) {
+        RAISE_ERROR(OUT_OF_MEMORY_ATOM);
+    }
+    return info_to_term(&info, &ctx->heap, ctx->global);
+}
 
 struct BinaryCursor
 {
@@ -637,6 +627,10 @@ static term nif_get_event(Context *ctx, int argc, term argv[])
     return term_invalid_term();
 }
 
+static const struct Nif getinfo_nif = {
+    .base.type = NIFFunctionType,
+    .nif_ptr = nif_getinfo
+};
 static const struct Nif set_read_binary_nif = {
     .base.type = NIFFunctionType,
     .nif_ptr = nif_set_read_binary
@@ -662,6 +656,9 @@ static const struct Nif *get_nif(const char *nifname)
 {
     if (memcmp(nifname, MODULE_PREFIX, strlen(MODULE_PREFIX))) {
         return NULL;
+    }
+    if (strcmp(nifname + strlen(MODULE_PREFIX), "getinfo/1") == 0) {
+        return &getinfo_nif;
     }
     if (strcmp(nifname + strlen(MODULE_PREFIX), "set_read_binary/2") == 0) {
         return &set_read_binary_nif;

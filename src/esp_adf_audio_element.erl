@@ -7,7 +7,8 @@
     audio_element_opt/0,
     audio_element_status/0,
     audio_element_codec_fmt/0,
-    audio_element_position_prop/0,
+    audio_element_info/0,
+    audio_element_info_key/0,
     audio_element_event/0
 ]).
 
@@ -16,7 +17,8 @@
     setopts/2,
     controlling_process/2,
     get_event/1,
-    get_event/2
+    get_event/2,
+    getinfo/1
 ]).
 
 % Resource for audio elements
@@ -67,21 +69,30 @@
     | pls
     | unsupported.
 
--type audio_element_position_prop() ::
-    {sample_rates, pos_integer()}
-    | {channels, pos_integer()}
-    | {bits, pos_integer()}
-    | {bps, pos_integer()}
-    | {byte_pos, integer()}
-    | {total_bytes, integer()}
-    | {duration, pos_integer()}
-    | {codec_fmt, audio_element_codec_fmt()}.
+-type audio_element_info_key() ::
+    sample_rates
+    | channels
+    | bits
+    | bps
+    | byte_pos
+    | total_bytes
+    | duration
+    | codec_fmt.
+
+-type audio_element_info() :: #{audio_element_info_key() => integer() | audio_element_codec_fmt()}.
 
 -type audio_element_event() ::
     {status, audio_element_status()}
     | music_info
     | codec_fmt
-    | {position, [audio_element_position_prop()]}.
+    | {position, audio_element_info()}.
+
+%% @doc Get info about a given audio element.
+%% @param AudioElement element to get info about
+%% @return information about the audio element, including position
+-spec getinfo(AudioElement :: audio_element()) -> audio_element_info().
+getinfo(_AudioElement) ->
+    erlang:nif_error(undefined).
 
 %% @doc Set read callback to read a given binary.
 %% If binary is reference counted, it is not copied.
