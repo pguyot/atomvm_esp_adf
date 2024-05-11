@@ -68,8 +68,8 @@ stop(_AudioPipeline) ->
     erlang:nif_error(undefined).
 
 %% @doc Wait for the pipeline to stop. This function is a dirty nif, i.e. it
-%% blocks the scheduler until the pipeline is stopped. So users should use
-%% events (yet to be ported) to only call it when the pipeline is stopped.
+%% blocks the scheduler until the pipeline is stopped. So users should only
+%% call it when the pipeline is stopped.
 %% @param AudioPipeline pipeline to wait to be stopped
 %% @return ok
 -spec wait_for_stop(audio_pipeline()) -> ok.
