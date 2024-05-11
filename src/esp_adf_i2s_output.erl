@@ -4,7 +4,8 @@
 -export([init/1]).
 
 -type i2s_output_option() ::
-    {rate, pos_integer()}
+    esp_adf_audio_element:audio_element_opt()
+    | {rate, pos_integer()}
     | {bits, 8 | 16 | 24 | 32}
     | {channels, 1 | 2}
     | {gpio_mclk, -1 | non_neg_integer()}

@@ -83,7 +83,7 @@
     | codec_fmt
     | {position, [audio_element_position_prop()]}.
 
-%% @doc Set read callback to read a given binary
+%% @doc Set read callback to read a given binary.
 %% If binary is reference counted, it is not copied.
 %% @param AudioElement element to set read callback to
 %% @param Binary binary to read

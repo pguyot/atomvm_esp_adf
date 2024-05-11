@@ -8,10 +8,11 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 
-#include <aac_decoder.h>
 #include <esp_attr.h>
 #include <esp_log.h>
 #include <esp_system.h>
+
+#include <aac_decoder.h>
 
 #pragma GCC diagnostic pop
 
