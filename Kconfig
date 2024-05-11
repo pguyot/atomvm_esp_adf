@@ -26,4 +26,9 @@ config AVM_ESP_ADF_MP3_DECODER_ENABLE
 	default y
 	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
 
+config AVM_ESP_ADF_RSP_FILTER_ENABLE
+	bool  "Enable AtomVM esp adf rsp filter"
+	default y
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
 endmenu
