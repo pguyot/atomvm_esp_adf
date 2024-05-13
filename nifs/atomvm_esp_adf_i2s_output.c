@@ -30,12 +30,37 @@
 #include <term.h>
 
 #include "atomvm_esp_adf_audio_element.h"
+#include "atomvm_esp_adf_common.h"
 
 // #define ENABLE_TRACE
 #include <trace.h>
 
 #define MODULE_PREFIX "esp_adf_i2s_output:"
 #define TAG "esp_adf_i2s_output"
+
+typedef struct
+{
+    bool active;
+    int gpio_mclk;
+    int gpio_bclk;
+    int gpio_lrclk;
+    int gpio_dout;
+    int rate;
+    int bits;
+    int channels;
+} i2s_output_cfg_t;
+
+#define DEFAULT_I2S_OUTPUT_CONFIG()   \
+    {                                 \
+        .active = true,               \
+        .gpio_mclk = I2S_GPIO_UNUSED, \
+        .gpio_bclk = 0,               \
+        .gpio_lrclk = 0,              \
+        .gpio_dout = 0,               \
+        .rate = 48000,                \
+        .bits = 16,                   \
+        .channels = 2                 \
+    }
 
 struct I2SData
 {
@@ -117,7 +142,7 @@ static int i2s_write(audio_element_handle_t self, char *buffer, int len, TickTyp
     return bytes_written;
 }
 
-static void i2s_data_init(struct I2SData *driver_data, const struct MusicInfo *music_info, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
+static void i2s_data_init(struct I2SData *driver_data, const i2s_output_cfg_t *cfg)
 {
     TRACE("%s\n", __func__);
 
@@ -125,13 +150,13 @@ static void i2s_data_init(struct I2SData *driver_data, const struct MusicInfo *m
     i2s_new_channel(&driver_data->chan_cfg, &driver_data->tx_handle, NULL);
 
     driver_data->std_config = (i2s_std_config_t){
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(music_info->rate),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(music_info->bits, music_info->channels),
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(cfg->rate),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(cfg->bits, cfg->channels),
         .gpio_cfg = {
-            .mclk = gpio_mclk,
-            .bclk = gpio_bclk,
-            .ws = gpio_lrclk,
-            .dout = gpio_dout,
+            .mclk = cfg->gpio_mclk,
+            .bclk = cfg->gpio_bclk,
+            .ws = cfg->gpio_lrclk,
+            .dout = cfg->gpio_dout,
             .din = I2S_GPIO_UNUSED,
             .invert_flags = {
                 .mclk_inv = false,
@@ -143,7 +168,7 @@ static void i2s_data_init(struct I2SData *driver_data, const struct MusicInfo *m
     i2s_channel_init_std_mode(driver_data->tx_handle, &driver_data->std_config);
 }
 
-static term i2s_output_new(Context *ctx, term argv[], bool active, const struct MusicInfo *music_info, int gpio_mclk, int gpio_bclk, int gpio_lrclk, int gpio_dout)
+static term i2s_output_new(Context *ctx, term argv[], const i2s_output_cfg_t *cfg)
 {
     TRACE("%s\n", __func__);
 
@@ -158,13 +183,13 @@ static term i2s_output_new(Context *ctx, term argv[], bool active, const struct 
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
 
-    audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
-    cfg.open = i2s_open;
-    cfg.close = i2s_close;
-    cfg.destroy = i2s_destroy;
-    cfg.process = i2s_process;
-    cfg.write = i2s_write;
-    cfg.tag = "i2s";
+    audio_element_cfg_t ae_cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
+    ae_cfg.open = i2s_open;
+    ae_cfg.close = i2s_close;
+    ae_cfg.destroy = i2s_destroy;
+    ae_cfg.process = i2s_process;
+    ae_cfg.write = i2s_write;
+    ae_cfg.tag = "i2s";
 
     struct I2SData *driver_data = malloc(sizeof(struct I2SData));
     if (IS_NULL_PTR(driver_data)) {
@@ -172,9 +197,9 @@ static term i2s_output_new(Context *ctx, term argv[], bool active, const struct 
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
 
-    i2s_data_init(driver_data, music_info, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
+    i2s_data_init(driver_data, cfg);
 
-    audio_element_handle_t audio_element = audio_element_init(&cfg);
+    audio_element_handle_t audio_element = audio_element_init(&ae_cfg);
     if (IS_NULL_PTR(audio_element)) {
         ESP_LOGW(TAG, "Failed to allocate memory: %s:%i.\n", __FILE__, __LINE__);
         free(driver_data);
@@ -182,9 +207,9 @@ static term i2s_output_new(Context *ctx, term argv[], bool active, const struct 
     }
 
     audio_element_setdata(audio_element, driver_data);
-    audio_element_set_music_info(audio_element, music_info->rate, music_info->channels, music_info->bits);
+    audio_element_set_music_info(audio_element, cfg->rate, cfg->channels, cfg->bits);
 
-    atomvm_esp_adf_audio_element_init_resource(rsrc_obj, audio_element, active, ctx);
+    atomvm_esp_adf_audio_element_init_resource(rsrc_obj, audio_element, cfg->active, ctx);
     return atomvm_esp_adf_audio_element_resource_to_opaque(rsrc_obj, ctx);
 }
 
@@ -193,56 +218,53 @@ static term nif_init(Context *ctx, int argc, term argv[])
     TRACE("%s\n", __func__);
     UNUSED(argc);
 
-    term cfg = argv[0];
+    VALIDATE_VALUE(argv[0], term_is_list);
 
-    VALIDATE_VALUE(cfg, term_is_list);
-
-    term gpio_mclk_term = interop_kv_get_value_default(cfg, ATOM_STR("\x9", "gpio_mclk"), term_from_int(I2S_GPIO_UNUSED), ctx->global);
-    term gpio_bclk_term = interop_kv_get_value(cfg, ATOM_STR("\x9", "gpio_bclk"), ctx->global);
-    term gpio_lrclk_term = interop_kv_get_value(cfg, ATOM_STR("\xA", "gpio_lrclk"), ctx->global);
-    term gpio_dout_term = interop_kv_get_value(cfg, ATOM_STR("\x9", "gpio_dout"), ctx->global);
-
-    VALIDATE_VALUE(gpio_mclk_term, term_is_integer);
-    VALIDATE_VALUE(gpio_bclk_term, term_is_integer);
-    VALIDATE_VALUE(gpio_lrclk_term, term_is_integer);
-    VALIDATE_VALUE(gpio_dout_term, term_is_integer);
-
-    avm_int_t gpio_mclk = term_to_int(gpio_mclk_term);
-    avm_int_t gpio_bclk = term_to_int(gpio_bclk_term);
-    avm_int_t gpio_lrclk = term_to_int(gpio_lrclk_term);
-    avm_int_t gpio_dout = term_to_int(gpio_dout_term);
-
-    if (UNLIKELY(gpio_mclk != I2S_GPIO_UNUSED && !GPIO_IS_VALID_GPIO(gpio_mclk))) {
-        RAISE_ERROR(BADARG_ATOM);
+    i2s_output_cfg_t cfg = DEFAULT_I2S_OUTPUT_CONFIG();
+    if (UNLIKELY(!get_bool_parameter(ctx, argv, ATOM_STR("\x6", "active"), &cfg.active))) {
+        return term_invalid_term();
     }
-    if (UNLIKELY(!GPIO_IS_VALID_GPIO(gpio_bclk))) {
-        RAISE_ERROR(BADARG_ATOM);
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "gpio_mclk"), &cfg.gpio_mclk, false))) {
+        return term_invalid_term();
     }
-    if (UNLIKELY(!GPIO_IS_VALID_GPIO(gpio_lrclk))) {
-        RAISE_ERROR(BADARG_ATOM);
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "gpio_bclk"), &cfg.gpio_bclk, true))) {
+        return term_invalid_term();
     }
-    if (UNLIKELY(!GPIO_IS_VALID_GPIO(gpio_dout))) {
-        RAISE_ERROR(BADARG_ATOM);
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "gpio_lrclk"), &cfg.gpio_lrclk, true))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "gpio_dout"), &cfg.gpio_dout, true))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x4", "rate"), &cfg.rate, false))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x4", "bits"), &cfg.bits, false))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x8", "channels"), &cfg.channels, false))) {
+        return term_invalid_term();
     }
 
-    term rate_term = interop_kv_get_value_default(cfg, ATOM_STR("\x4", "rate"), term_from_int(48000), ctx->global);
-    term bits_term = interop_kv_get_value_default(cfg, ATOM_STR("\x4", "bits"), term_from_int(32), ctx->global);
-    term channels_term = interop_kv_get_value_default(cfg, ATOM_STR("\x8", "channels"), term_from_int(2), ctx->global);
-
-    VALIDATE_VALUE(rate_term, term_is_integer);
-    VALIDATE_VALUE(bits_term, term_is_integer);
-    VALIDATE_VALUE(channels_term, term_is_integer);
-
-    avm_int_t rate = term_to_int(rate_term);
-    avm_int_t bits = term_to_int(bits_term);
-    avm_int_t channels = term_to_int(channels_term);
+    if (UNLIKELY(cfg.gpio_mclk != I2S_GPIO_UNUSED && !GPIO_IS_VALID_GPIO(cfg.gpio_mclk))) {
+        RAISE_ERROR(BADARG_ATOM);
+    }
+    if (UNLIKELY(!GPIO_IS_VALID_GPIO(cfg.gpio_bclk))) {
+        RAISE_ERROR(BADARG_ATOM);
+    }
+    if (UNLIKELY(!GPIO_IS_VALID_GPIO(cfg.gpio_lrclk))) {
+        RAISE_ERROR(BADARG_ATOM);
+    }
+    if (UNLIKELY(!GPIO_IS_VALID_GPIO(cfg.gpio_dout))) {
+        RAISE_ERROR(BADARG_ATOM);
+    }
 
     // In standard mode, there are always 2 channels
-    if (UNLIKELY(channels != 2)) {
+    if (UNLIKELY(cfg.channels != 2)) {
         RAISE_ERROR(BADARG_ATOM);
     }
     // In standard mode, bits can be 8/16/24 or 32
-    if (UNLIKELY(bits != 8 && bits != 16 && bits != 24 && bits != 32)) {
+    if (UNLIKELY(cfg.bits != 8 && cfg.bits != 16 && cfg.bits != 24 && cfg.bits != 32)) {
         RAISE_ERROR(BADARG_ATOM);
     }
 
@@ -254,16 +276,7 @@ static term nif_init(Context *ctx, int argc, term argv[])
     _Static_assert(I2S_DATA_BIT_WIDTH_32BIT == 32, "expected I2S_DATA_BIT_WIDTH_32BIT to be equal to 32");
 #endif
 
-    struct MusicInfo music_info = {
-        .rate = rate,
-        .bits = bits,
-        .channels = channels
-    };
-
-    term active_term = interop_kv_get_value_default(cfg, ATOM_STR("\x6", "active"), TRUE_ATOM, ctx->global);
-    VALIDATE_VALUE(active_term, term_is_atom);
-
-    return i2s_output_new(ctx, argv, active_term == TRUE_ATOM, &music_info, gpio_mclk, gpio_bclk, gpio_lrclk, gpio_dout);
+    return i2s_output_new(ctx, argv, &cfg);
 }
 
 static const struct Nif init_nif = {

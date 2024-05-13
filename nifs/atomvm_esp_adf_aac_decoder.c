@@ -28,6 +28,7 @@
 #include <term.h>
 
 #include "atomvm_esp_adf_audio_element.h"
+#include "atomvm_esp_adf_common.h"
 
 // #define ENABLE_TRACE
 #include <trace.h>
@@ -55,10 +56,27 @@ static term nif_init(Context *ctx, int argc, term argv[])
     }
 
     aac_decoder_cfg_t aac_cfg = DEFAULT_AAC_DECODER_CONFIG();
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xB", "out_rb_size"), &aac_cfg.out_rb_size, false))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "task_stack"), &aac_cfg.task_stack, false))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_core"), &aac_cfg.task_core, false))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_prio"), &aac_cfg.task_prio, false))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_bool_parameter(ctx, argv, ATOM_STR("\xC", "stack_in_ext"), &aac_cfg.stack_in_ext))) {
+        return term_invalid_term();
+    }
+    if (UNLIKELY(!get_bool_parameter(ctx, argv, ATOM_STR("\xB", "plus_enable"), &aac_cfg.plus_enable))) {
+        return term_invalid_term();
+    }
     audio_element_handle_t audio_element = aac_decoder_init(&aac_cfg);
 
     atomvm_esp_adf_audio_element_init_resource(rsrc_obj, audio_element, active_term == TRUE_ATOM, ctx);
-
     return atomvm_esp_adf_audio_element_resource_to_opaque(rsrc_obj, ctx);
 }
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include <sdkconfig.h>
 
-#ifdef CONFIG_AVM_ESP_ADF_MP3_DECODER_ENABLE
+#ifdef CONFIG_AVM_ESP_ADF_G711_DECODER_ENABLE
 
 #include <stdlib.h>
 
@@ -12,7 +12,7 @@
 #include <esp_log.h>
 #include <esp_system.h>
 
-#include <mp3_decoder.h>
+#include <g711_decoder.h>
 
 #pragma GCC diagnostic pop
 
@@ -33,12 +33,18 @@
 // #define ENABLE_TRACE
 #include <trace.h>
 
-#define MODULE_PREFIX "esp_adf_mp3_decoder:"
-#define TAG "esp_adf_mp3_decoder"
+#define MODULE_PREFIX "esp_adf_g711_decoder:"
+#define TAG "esp_adf_g711_decoder"
+
+static const AtomStringIntPair g711_dec_modes[] = {
+    { ATOM_STR("\x4", "alaw"), false },
+    { ATOM_STR("\x4", "ulaw"), true },
+    SELECT_INT_DEFAULT(-1)
+};
 
 static term nif_init(Context *ctx, int argc, term argv[])
 {
-    TRACE("%s:%s\n", __FILE__, __func__);
+    TRACE("%s\n", __func__);
     UNUSED(argc);
 
     VALIDATE_VALUE(argv[0], term_is_list);
@@ -55,26 +61,28 @@ static term nif_init(Context *ctx, int argc, term argv[])
         RAISE_ERROR(OUT_OF_MEMORY_ATOM);
     }
 
-    mp3_decoder_cfg_t mp3_cfg = DEFAULT_MP3_DECODER_CONFIG();
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xB", "out_rb_size"), &mp3_cfg.out_rb_size, false))) {
+    g711_decoder_cfg_t g711_cfg = DEFAULT_G711_DECODER_CONFIG();
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xB", "out_rb_size"), &g711_cfg.out_rb_size, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "task_stack"), &mp3_cfg.task_stack, false))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "task_stack"), &g711_cfg.task_stack, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_core"), &mp3_cfg.task_core, false))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_core"), &g711_cfg.task_core, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_prio"), &mp3_cfg.task_prio, false))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_prio"), &g711_cfg.task_prio, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_bool_parameter(ctx, argv, ATOM_STR("\xC", "stack_in_ext"), &mp3_cfg.stack_in_ext))) {
+    if (UNLIKELY(!get_bool_parameter(ctx, argv, ATOM_STR("\xC", "stack_in_ext"), &g711_cfg.stack_in_ext))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_bool_parameter(ctx, argv, ATOM_STR("\x10", "id3_parse_enable"), &mp3_cfg.id3_parse_enable))) {
+    int dec_mode = g711_cfg.dec_mode;
+    if (UNLIKELY(!get_enum_parameter(ctx, argv, ATOM_STR("\x8", "dec_mode"), g711_dec_modes, &dec_mode))) {
         return term_invalid_term();
     }
-    audio_element_handle_t audio_element = mp3_decoder_init(&mp3_cfg);
+    g711_cfg.dec_mode = (bool) dec_mode;
+    audio_element_handle_t audio_element = g711_decoder_init(&g711_cfg);
 
     atomvm_esp_adf_audio_element_init_resource(rsrc_obj, audio_element, active_term == TRUE_ATOM, ctx);
     return atomvm_esp_adf_audio_element_resource_to_opaque(rsrc_obj, ctx);
@@ -100,6 +108,6 @@ static const struct Nif *get_nif(const char *nifname)
     return NULL;
 }
 
-REGISTER_NIF_COLLECTION(esp_adf_mp3_decoder, NULL, NULL, get_nif)
+REGISTER_NIF_COLLECTION(esp_adf_g711_decoder, NULL, NULL, get_nif)
 
 #endif

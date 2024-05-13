@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 
-menu "ATOMVM_ESP_ADF Configuration"
+menu "ATOMVM ESP-ADF Configuration"
 
 config AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
-	bool  "Enable AtomVM esp adf audio element driver"
+	bool  "Enable AtomVM esp adf audio element"
 	default y
 
 config AVM_ESP_ADF_AUDIO_PIPELINE_ENABLE
@@ -12,22 +12,57 @@ config AVM_ESP_ADF_AUDIO_PIPELINE_ENABLE
 	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
 
 config AVM_ESP_ADF_I2S_OUTPUT_ENABLE
-	bool  "Enable AtomVM esp adf i2s output"
+	bool  "Enable AtomVM esp adf I2S output stream"
 	default y
 	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
 
 config AVM_ESP_ADF_AAC_DECODER_ENABLE
-	bool  "Enable AtomVM esp adf aac decoder"
+	bool  "Enable AtomVM esp adf AAC decoder"
 	default y
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_AMR_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf AMR decoder"
+	default n
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_FLAC_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf FLAC decoder"
+	default n
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_G711_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf G711 decoder"
+	default n
 	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
 
 config AVM_ESP_ADF_MP3_DECODER_ENABLE
-	bool  "Enable AtomVM esp adf mp3 decoder"
+	bool  "Enable AtomVM esp adf MP3 decoder"
 	default y
 	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
 
+config AVM_ESP_ADF_OGG_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf OGG decoder"
+	default n
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_OPUS_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf OPUS decoder"
+	default n
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_PCM_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf PCM decoder"
+	default n
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
+config AVM_ESP_ADF_WAV_DECODER_ENABLE
+	bool  "Enable AtomVM esp adf WAV decoder"
+	default n
+	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
+
 config AVM_ESP_ADF_RSP_FILTER_ENABLE
-	bool  "Enable AtomVM esp adf rsp filter"
+	bool  "Enable AtomVM esp adf resample filter"
 	default y
 	depends on AVM_ESP_ADF_AUDIO_ELEMENT_ENABLE
 
