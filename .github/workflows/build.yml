@@ -16,6 +16,24 @@ jobs:
         idf-version:
          - 'v5.1.3'
          - 'v5.2.1'
+        additional_decoders: [""]
+
+        include:
+        - additional_decoders: "FLAC OGG"
+          soc: "esp32c3"
+          idf-version: "v5.2.1"
+
+        - additional_decoders: "G711 OPUS"
+          soc: "esp32c3"
+          idf-version: "v5.2.1"
+
+        - additional_decoders: "AMR"
+          soc: "esp32c3"
+          idf-version: "v5.2.1"
+
+        - additional_decoders: "PCM WAV"
+          soc: "esp32c3"
+          idf-version: "v5.2.1"
 
     container: espressif/idf:${{ matrix.idf-version }}
     steps:
@@ -65,6 +83,9 @@ jobs:
         . $IDF_PATH/export.sh
         idf.py set-target ${{ matrix.soc }}
         echo CONFIG_FREERTOS_ENABLE_BACKWARD_COMPATIBILITY=y >> sdkconfig
+        for codec in "${{ matrix.additional_decoders }}" ; do
+            echo AVM_ESP_ADF_${codec}_DECODER_ENABLE=y >> sdkconfig
+        done
         idf.py build -DCONFIG_FREERTOS_ENABLE_BACKWARD_COMPATIBILITY=y
 
     - name: Run tests using qemu
@@ -83,12 +104,14 @@ jobs:
 
     - name: "Create a ${{ matrix.soc }} image"
       working-directory: AtomVM/src/platforms/esp32/build
+      if: matrix.additional_decoders == ''
       run: |
         ./mkimage.sh
         mv atomvm-${{ matrix.soc }}.img atomvm-esp-adf-${{ matrix.soc }}-${{ matrix.idf-version }}.img
 
     - name: "Upload ${{ matrix.soc }} artifacts"
       uses: actions/upload-artifact@v4
+      if: matrix.additional_decoders == ''
       with:
         name: atomvm-esp-adf-${{ matrix.soc }}-${{ matrix.idf-version }}-image
         path: AtomVM/src/platforms/esp32/build/atomvm-esp-adf-${{ matrix.soc }}-${{ matrix.idf-version }}.img

@@ -29,6 +29,7 @@
 #include <term.h>
 
 #include "atomvm_esp_adf_audio_element.h"
+#include "atomvm_esp_adf_common.h"
 
 // #define ENABLE_TRACE
 #include <trace.h>
@@ -58,113 +59,64 @@ static const AtomStringIntPair esp_rsp_prefer_types[] = {
     SELECT_INT_DEFAULT(-1)
 };
 
-static bool get_integer_parameter(Context *ctx, term argv[], AtomString key, int *value)
-{
-    term parameter_term = interop_kv_get_value(argv[0], key, ctx->global);
-    if (term_is_invalid_term(parameter_term)) {
-        return true;
-    }
-    if (UNLIKELY(!term_is_integer(parameter_term))) {
-        RAISE_ERROR(BADARG_ATOM);
-        return false;
-    }
-    *value = term_to_int(parameter_term);
-    return true;
-}
-
-static bool get_bool_parameter(Context *ctx, term argv[], AtomString key, bool *value)
-{
-    term parameter_term = interop_kv_get_value(argv[0], key, ctx->global);
-    if (term_is_invalid_term(parameter_term)) {
-        return true;
-    }
-    if (UNLIKELY(!term_is_atom(parameter_term) || (parameter_term != TRUE_ATOM && parameter_term != FALSE_ATOM))) {
-        RAISE_ERROR(BADARG_ATOM);
-        return false;
-    }
-    *value = parameter_term == TRUE_ATOM;
-    return true;
-}
-
-static bool get_enum_parameter(Context *ctx, term argv[], AtomString key, const AtomStringIntPair *table, int *value)
-{
-    term parameter_term = interop_kv_get_value(argv[0], key, ctx->global);
-    if (term_is_invalid_term(parameter_term)) {
-        return true;
-    }
-    if (UNLIKELY(!term_is_atom(parameter_term))) {
-        RAISE_ERROR(BADARG_ATOM);
-        return false;
-    }
-    int enum_value = interop_atom_term_select_int(table, parameter_term, ctx->global);
-    if (enum_value < 0) {
-        return false;
-    }
-    *value = enum_value;
-    return true;
-}
-
 static term nif_init(Context *ctx, int argc, term argv[])
 {
     TRACE("%s\n", __func__);
     UNUSED(argc);
 
-    term cfg = argv[0];
-
-    VALIDATE_VALUE(cfg, term_is_list);
+    VALIDATE_VALUE(argv[0], term_is_list);
     term active_term = interop_kv_get_value_default(argv[0], ATOM_STR("\x6", "active"), TRUE_ATOM, ctx->global);
 
     rsp_filter_cfg_t filter_cfg = DEFAULT_RESAMPLE_FILTER_CONFIG();
-
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x8", "src_bits"), &filter_cfg.src_bits))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x8", "src_bits"), &filter_cfg.src_bits, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x6", "src_ch"), &filter_cfg.src_ch))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x6", "src_ch"), &filter_cfg.src_ch, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x8", "src_rate"), &filter_cfg.src_rate))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x8", "src_rate"), &filter_cfg.src_rate, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "dest_bits"), &filter_cfg.dest_bits))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "dest_bits"), &filter_cfg.dest_bits, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x7", "dest_ch"), &filter_cfg.dest_ch))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x7", "dest_ch"), &filter_cfg.dest_ch, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "dest_rate"), &filter_cfg.dest_rate))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "dest_rate"), &filter_cfg.dest_rate, false))) {
         return term_invalid_term();
     }
     if (UNLIKELY(!get_enum_parameter(ctx, argv, ATOM_STR("\x4", "mode"), esp_resample_modes, (int *) &filter_cfg.mode))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x10", "max_indata_bytes"), &filter_cfg.max_indata_bytes))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x10", "max_indata_bytes"), &filter_cfg.max_indata_bytes, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xD", "out_len_bytes"), &filter_cfg.out_len_bytes))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xD", "out_len_bytes"), &filter_cfg.out_len_bytes, false))) {
         return term_invalid_term();
     }
     if (UNLIKELY(!get_enum_parameter(ctx, argv, ATOM_STR("\x4", "type"), esp_resample_types, &filter_cfg.type))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "complexity"), &filter_cfg.complexity))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "complexity"), &filter_cfg.complexity, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xB", "down_ch_idx"), &filter_cfg.down_ch_idx))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xB", "down_ch_idx"), &filter_cfg.down_ch_idx, false))) {
         return term_invalid_term();
     }
     if (UNLIKELY(!get_enum_parameter(ctx, argv, ATOM_STR("\xB", "prefer_flag"), esp_rsp_prefer_types, (int *) &filter_cfg.prefer_flag))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xB", "out_rb_size"), &filter_cfg.out_rb_size))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xB", "out_rb_size"), &filter_cfg.out_rb_size, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "task_stack"), &filter_cfg.task_stack))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\xA", "task_stack"), &filter_cfg.task_stack, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_core"), &filter_cfg.task_core))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_core"), &filter_cfg.task_core, false))) {
         return term_invalid_term();
     }
-    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_prio"), &filter_cfg.task_prio))) {
+    if (UNLIKELY(!get_integer_parameter(ctx, argv, ATOM_STR("\x9", "task_prio"), &filter_cfg.task_prio, false))) {
         return term_invalid_term();
     }
     if (UNLIKELY(!get_bool_parameter(ctx, argv, ATOM_STR("\xC", "stack_in_ext"), &filter_cfg.stack_in_ext))) {

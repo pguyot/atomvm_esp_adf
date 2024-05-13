@@ -19,12 +19,20 @@
 #
 
 set(ATOMVM_ESP_AUDIO_COMPONENT_SRCS
+    "nifs/atomvm_esp_adf_aac_decoder.c"
+    "nifs/atomvm_esp_adf_amr_decoder.c"
     "nifs/atomvm_esp_adf_audio_element.c"
     "nifs/atomvm_esp_adf_audio_pipeline.c"
-    "nifs/atomvm_esp_adf_aac_decoder.c"
+    "nifs/atomvm_esp_adf_common.c"
+    "nifs/atomvm_esp_adf_flac_decoder.c"
+    "nifs/atomvm_esp_adf_g711_decoder.c"
     "nifs/atomvm_esp_adf_i2s_output.c"
     "nifs/atomvm_esp_adf_mp3_decoder.c"
+    "nifs/atomvm_esp_adf_ogg_decoder.c"
+    "nifs/atomvm_esp_adf_opus_decoder.c"
+    "nifs/atomvm_esp_adf_pcm_decoder.c"
     "nifs/atomvm_esp_adf_rsp_filter.c"
+    "nifs/atomvm_esp_adf_wav_decoder.c"
 )
 
 # WHOLE_ARCHIVE option is supported only with esp-idf 5.x
