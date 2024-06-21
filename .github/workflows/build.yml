@@ -14,26 +14,26 @@ jobs:
       matrix:
         soc: ["esp32", "esp32c3", "esp32s2", "esp32s3", "esp32c6"]
         idf-version:
-         - 'v5.1.3'
-         - 'v5.2.1'
+         - 'v5.1.4'
+         - 'v5.2.2'
         additional_decoders: [""]
 
         include:
         - additional_decoders: "FLAC OGG"
           soc: "esp32c3"
-          idf-version: "v5.2.1"
+          idf-version: "v5.2.2"
 
         - additional_decoders: "G711 OPUS"
           soc: "esp32c3"
-          idf-version: "v5.2.1"
+          idf-version: "v5.2.2"
 
         - additional_decoders: "AMR"
           soc: "esp32c3"
-          idf-version: "v5.2.1"
+          idf-version: "v5.2.2"
 
         - additional_decoders: "PCM WAV"
           soc: "esp32c3"
-          idf-version: "v5.2.1"
+          idf-version: "v5.2.2"
 
     container: espressif/idf:${{ matrix.idf-version }}
     steps:
