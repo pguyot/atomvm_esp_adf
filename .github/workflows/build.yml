@@ -42,6 +42,7 @@ jobs:
       with:
         repository: atomvm/AtomVM
         path: AtomVM
+        ref: release-0.6
 
     - name: Checkout atomvm_esp_adf
       uses: actions/checkout@v4
