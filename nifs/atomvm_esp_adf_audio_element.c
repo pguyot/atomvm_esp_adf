@@ -98,9 +98,8 @@ static term atomvm_esp_adf_audio_element_resource_to_opaque_opt(struct AudioElem
 {
     TRACE("%s:%s\n", __FILE__, __func__);
     term obj = term_from_resource(resource, heap);
-    if (incr_refc) {
-        struct RefcBinary *rsrc_refc = refc_binary_from_data(resource);
-        refc_binary_increment_refcount(rsrc_refc);
+    if (!incr_refc) {
+        enif_release_resource(resource); // decrement refcount after term_from_resource
     }
 
     term opaque_term = term_alloc_tuple(2, heap);
