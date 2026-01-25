@@ -82,7 +82,22 @@ static esp_err_t i2s_open(audio_element_handle_t self)
 
     struct I2SData *i2s = (struct I2SData *) audio_element_getdata(self);
 
-    i2s_channel_enable(i2s->tx_handle);
+    esp_err_t err = i2s_new_channel(&i2s->chan_cfg, &i2s->tx_handle, NULL);
+    if (UNLIKELY(err != ESP_OK)) {
+        return err;
+    }
+    err = i2s_channel_init_std_mode(i2s->tx_handle, &i2s->std_config);
+    if (UNLIKELY(err != ESP_OK)) {
+        i2s_del_channel(i2s->tx_handle);
+        i2s->tx_handle = NULL;
+        return err;
+    }
+    err = i2s_channel_enable(i2s->tx_handle);
+    if (UNLIKELY(err != ESP_OK)) {
+        i2s_del_channel(i2s->tx_handle);
+        i2s->tx_handle = NULL;
+        return err;
+    }
 
     return ESP_OK;
 }
@@ -93,7 +108,11 @@ static esp_err_t i2s_close(audio_element_handle_t self)
 
     struct I2SData *i2s = (struct I2SData *) audio_element_getdata(self);
 
-    i2s_channel_disable(i2s->tx_handle);
+    if (LIKELY(i2s->tx_handle)) {
+        i2s_channel_disable(i2s->tx_handle);
+        i2s_del_channel(i2s->tx_handle);
+        i2s->tx_handle = NULL;
+    }
 
     return ESP_OK;
 }
@@ -103,9 +122,6 @@ static esp_err_t i2s_destroy(audio_element_handle_t self)
     TRACE("%s\n", __func__);
 
     struct I2SData *i2s = (struct I2SData *) audio_element_getdata(self);
-
-    i2s_del_channel(i2s->tx_handle);
-
     free(i2s);
 
     return ESP_OK;
@@ -147,8 +163,6 @@ static void i2s_data_init(struct I2SData *driver_data, const i2s_output_cfg_t *c
     TRACE("%s\n", __func__);
 
     driver_data->chan_cfg = (i2s_chan_config_t) I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
-    i2s_new_channel(&driver_data->chan_cfg, &driver_data->tx_handle, NULL);
-
     driver_data->std_config = (i2s_std_config_t){
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(cfg->rate),
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(cfg->bits, cfg->channels),
@@ -165,7 +179,7 @@ static void i2s_data_init(struct I2SData *driver_data, const i2s_output_cfg_t *c
             },
         },
     };
-    i2s_channel_init_std_mode(driver_data->tx_handle, &driver_data->std_config);
+    driver_data->tx_handle = NULL;
 }
 
 static term i2s_output_new(Context *ctx, term argv[], const i2s_output_cfg_t *cfg)
