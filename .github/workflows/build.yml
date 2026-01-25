@@ -12,28 +12,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        soc: ["esp32", "esp32c3", "esp32s2", "esp32s3", "esp32c6"]
+        soc:
+         - "esp32"
+         - "esp32c3"
+         - "esp32s2"
+         - "esp32s3"
+         - "esp32c6"
         idf-version:
-         - 'v5.1.4'
-         - 'v5.2.2'
+         - 'v5.1.6'
+         - 'v5.2.5'
+         - 'v5.3.3'
+         - 'v5.4.1'
         additional_decoders: [""]
 
         include:
         - additional_decoders: "FLAC OGG"
           soc: "esp32c3"
-          idf-version: "v5.2.2"
+          idf-version: 'v5.4.1'
 
         - additional_decoders: "G711 OPUS"
           soc: "esp32c3"
-          idf-version: "v5.2.2"
+          idf-version: 'v5.4.1'
 
         - additional_decoders: "AMR"
           soc: "esp32c3"
-          idf-version: "v5.2.2"
+          idf-version: 'v5.4.1'
 
         - additional_decoders: "PCM WAV"
           soc: "esp32c3"
-          idf-version: "v5.2.2"
+          idf-version: 'v5.4.1'
 
     container: espressif/idf:${{ matrix.idf-version }}
     steps:
@@ -83,7 +90,14 @@ jobs:
         rm -rf build
         . $IDF_PATH/export.sh
         idf.py set-target ${{ matrix.soc }}
+        # Needed for ADF:
         echo CONFIG_FREERTOS_ENABLE_BACKWARD_COMPATIBILITY=y >> sdkconfig
+        # Also ensure the binary is not too large by disabling networking
+        echo CONFIG_AVM_ENABLE_NETWORK_PORT_DRIVER=n >> sdkconfig
+        echo CONFIG_AVM_ENABLE_SOCKET_PORT_DRIVER=n >> sdkconfig
+        echo CONFIG_AVM_ENABLE_OTP_SOCKET_NIFS=n >> sdkconfig
+        echo CONFIG_AVM_ENABLE_OTP_NET_NIFS=n >> sdkconfig
+        echo CONFIG_AVM_ENABLE_OTP_SSL_NIFS=n >> sdkconfig
         for codec in "${{ matrix.additional_decoders }}" ; do
             echo AVM_ESP_ADF_${codec}_DECODER_ENABLE=y >> sdkconfig
         done
@@ -120,7 +134,7 @@ jobs:
 
   build-examples:
     runs-on: ubuntu-latest
-    container: erlang:26
+    container: erlang:27
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -136,7 +150,7 @@ jobs:
 
   build-doc:
     runs-on: ubuntu-latest
-    container: erlang:26
+    container: erlang:27
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -168,7 +182,7 @@ jobs:
 
   erlfmt:
     runs-on: ubuntu-latest
-    container: erlang:26
+    container: erlang:27
     steps:
       - name: Checkout
         uses: actions/checkout@v4
